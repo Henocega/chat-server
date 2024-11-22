@@ -3,22 +3,23 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
 	"net"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
-	"google.golang.org/protobuf/types/known/emptypb"
+	"time"
 
 	"github.com/Henocega/chat-server/internal/config"
 	"github.com/Henocega/chat-server/internal/config/env"
 	chat "github.com/Henocega/chat-server/pkg/chat_v1"
+	sq "github.com/Masterminds/squirrel"
 	"github.com/brianvoe/gofakeit"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-const grpcPort = 50051
+const chatTable = "\"chat\""
+const messageTable = "\"message\""
 
 type server struct {
 	chat.UnimplementedChatV1Server
@@ -68,8 +69,24 @@ func main() {
 }
 
 func (s *server) Create(ctx context.Context, req *chat.CreateRequest) (*chat.CreateResponse, error) {
-	fmt.Printf("Create request: %v", req)
-	log.Printf("Context: %v", ctx)
+	builderInsert := sq.Insert(chatTable).
+		PlaceholderFormat(sq.Dollar).
+		Columns("usernames").
+		Values(req.Usernames).
+		Suffix("RETURNING id")
+
+	query, args, err := builderInsert.ToSql()
+	if err != nil {
+		log.Fatalf("failed to build query: %v", err)
+	}
+
+	var chatID int64
+	err = s.pool.QueryRow(ctx, query, args...).Scan(&chatID)
+	if err != nil {
+		log.Fatalf("failed to insert chat: %v", err)
+	}
+
+	log.Printf("inserted chat with id: %d", chatID)
 
 	return &chat.CreateResponse{
 		Id: gofakeit.Int64(),
@@ -77,13 +94,40 @@ func (s *server) Create(ctx context.Context, req *chat.CreateRequest) (*chat.Cre
 }
 
 func (s *server) Delete(ctx context.Context, req *chat.DeleteRequest) (*emptypb.Empty, error) {
-	fmt.Printf("Delete request: %v", req)
-	log.Printf("Context: %v", ctx)
+	builderDelete := sq.Delete(chatTable).
+		PlaceholderFormat(sq.Dollar).
+		Where(sq.Eq{"id": req.Id})
+
+	query, args, err := builderDelete.ToSql()
+	if err != nil {
+		log.Fatalf("failed to build query: %v", err)
+	}
+
+	_, err = s.pool.Exec(ctx, query, args...)
+
+	if err != nil {
+		log.Fatalf("failed to delete chat: %v", err)
+	}
+
 	return nil, nil
 }
 
 func (s *server) SendMessage(ctx context.Context, req *chat.SendMessageRequest) (*emptypb.Empty, error) {
-	fmt.Printf("Send message request: %v", req)
-	log.Printf("Context: %v", ctx)
+	builderInsert := sq.Insert(messageTable).
+		PlaceholderFormat(sq.Dollar).
+		Columns("from", "text", "created_at").
+		Values(req.From, req.Text, time.Now())
+	// Suffix("RETURNING id")
+
+	query, args, err := builderInsert.ToSql()
+	if err != nil {
+		log.Fatalf("failed to build query: %v", err)
+	}
+
+	_, err = s.pool.Exec(ctx, query, args...)
+	if err != nil {
+		log.Fatalf("failed to insert message: %v", err)
+	}
+
 	return nil, nil
-}{pool: pool}
+}

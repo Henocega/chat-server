@@ -2,8 +2,9 @@ package env
 
 import (
 	"errors"
-	"github.com/Henocega/auth/internal/config"
 	"os"
+
+	"github.com/Henocega/chat-server/internal/config"
 )
 
 var _ config.PGConfig = (*pgConfig)(nil)
@@ -16,6 +17,7 @@ type pgConfig struct {
 	dsn string
 }
 
+// NewPGConfig some doc
 func NewPGConfig() (*pgConfig, error) {
 	dsn := os.Getenv(dsnEnvName)
 	if len(dsn) == 0 {

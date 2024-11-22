@@ -1,9 +1,10 @@
 package env
 
 import (
-	"github.com/Henocega/auth/internal/config"
 	"net"
 	"os"
+
+	"github.com/Henocega/chat-server/internal/config"
 
 	"github.com/pkg/errors"
 )
@@ -20,6 +21,7 @@ type grpcConfig struct {
 	port string
 }
 
+// NewGRPCConfig some doc
 func NewGRPCConfig() (*grpcConfig, error) {
 	host := os.Getenv(grpcHostEnvName)
 	if len(host) == 0 {
