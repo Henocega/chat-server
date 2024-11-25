@@ -7,6 +7,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/Henocega/chat-server/internal/config"
 	"github.com/Henocega/chat-server/internal/config/env"
 	chat "github.com/Henocega/chat-server/pkg/chat_v1"
@@ -19,7 +21,14 @@ import (
 )
 
 const chatTable = "\"chat\""
+
+const usernamesColumn = "usernames"
+const idColumn = "id"
+
 const messageTable = "\"message\""
+const fromColumn = "from"
+const textColumn = "text"
+const createdAtColumn = "created_at"
 
 type server struct {
 	chat.UnimplementedChatV1Server
@@ -71,19 +80,19 @@ func main() {
 func (s *server) Create(ctx context.Context, req *chat.CreateRequest) (*chat.CreateResponse, error) {
 	builderInsert := sq.Insert(chatTable).
 		PlaceholderFormat(sq.Dollar).
-		Columns("usernames").
+		Columns(usernamesColumn).
 		Values(req.Usernames).
 		Suffix("RETURNING id")
 
 	query, args, err := builderInsert.ToSql()
 	if err != nil {
-		log.Fatalf("failed to build query: %v", err)
+		return nil, errors.Errorf("failed to build query: %v", err)
 	}
 
 	var chatID int64
 	err = s.pool.QueryRow(ctx, query, args...).Scan(&chatID)
 	if err != nil {
-		log.Fatalf("failed to insert chat: %v", err)
+		return nil, errors.Errorf("failed to insert chat: %v", err)
 	}
 
 	log.Printf("inserted chat with id: %d", chatID)
@@ -96,17 +105,17 @@ func (s *server) Create(ctx context.Context, req *chat.CreateRequest) (*chat.Cre
 func (s *server) Delete(ctx context.Context, req *chat.DeleteRequest) (*emptypb.Empty, error) {
 	builderDelete := sq.Delete(chatTable).
 		PlaceholderFormat(sq.Dollar).
-		Where(sq.Eq{"id": req.Id})
+		Where(sq.Eq{idColumn: req.Id})
 
 	query, args, err := builderDelete.ToSql()
 	if err != nil {
-		log.Fatalf("failed to build query: %v", err)
+		return nil, errors.Errorf("failed to build query: %v", err)
 	}
 
 	_, err = s.pool.Exec(ctx, query, args...)
 
 	if err != nil {
-		log.Fatalf("failed to delete chat: %v", err)
+		return nil, errors.Errorf("failed to delete chat: %v", err)
 	}
 
 	return nil, nil
@@ -115,18 +124,17 @@ func (s *server) Delete(ctx context.Context, req *chat.DeleteRequest) (*emptypb.
 func (s *server) SendMessage(ctx context.Context, req *chat.SendMessageRequest) (*emptypb.Empty, error) {
 	builderInsert := sq.Insert(messageTable).
 		PlaceholderFormat(sq.Dollar).
-		Columns("from", "text", "created_at").
+		Columns(fromColumn, textColumn, createdAtColumn).
 		Values(req.From, req.Text, time.Now())
-	// Suffix("RETURNING id")
 
 	query, args, err := builderInsert.ToSql()
 	if err != nil {
-		log.Fatalf("failed to build query: %v", err)
+		return nil, errors.Errorf("failed to build query: %v", err)
 	}
 
 	_, err = s.pool.Exec(ctx, query, args...)
 	if err != nil {
-		log.Fatalf("failed to insert message: %v", err)
+		return nil, errors.Errorf("failed to insert message: %v", err)
 	}
 
 	return nil, nil

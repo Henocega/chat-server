@@ -1,12 +1,12 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE table "chat"
+create table "chat"
 (
     id        serial primary key,
     usernames text[] not null
 );
 
-CREATE table "message"
+create table "message"
 (
     id         serial primary key,
     "from"     text      not null,
